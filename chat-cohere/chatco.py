@@ -29,9 +29,9 @@ co = cohere.Client(os.getenv("COHERE_API_KEY"))
 conpath="conversation.json"
 
 colorama.init(autoreset=True)
+
 alert_message = f"{Fore.YELLOW}Type {Fore.LIGHTCYAN_EX}/help{Fore.YELLOW} at any time for information on how to use the commands.{Style.RESET_ALL}\n"
 print(alert_message)
-
 help_text = (
     f"{Fore.YELLOW}Welcome to the Interactive Chat and URL Text Extraction Script!{Style.RESET_ALL}\n"
     f"This script leverages OpenAI's GPT for conversation and extracts text from specified URLs to facilitate dynamic interactions.\n\n"
@@ -48,6 +48,8 @@ help_text = (
     f"           pdf, xls, xlsx, csv, py.\n{Style.RESET_ALL}"
     f"           Example:\n"
     f"           /read /path/to/your/file.txt\n\n"
+    f"  {Fore.GREEN}/online{Style.RESET_ALL} - Enable online mode for web searches.\n"
+    f"  {Fore.GREEN}/offline{Style.RESET_ALL} - Disable online mode.\n"
 )
  
 conversation_log =[]
