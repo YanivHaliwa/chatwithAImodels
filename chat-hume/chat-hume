@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+
+import os
+import asyncio
+from hume import HumeVoiceClient, MicrophoneInterface
+from dotenv import load_dotenv
+
+async def main():
+    load_dotenv()
+    HUME_API_KEY = os.getenv("HUME_API_KEY")
+    
+    if not HUME_API_KEY:
+        print("HUME_API_KEY not found in environment variables")
+        return
+
+    client = HumeVoiceClient(HUME_API_KEY)
+
+    async def handle_transcription(transcription):
+        print(f"Transcription received: {transcription}")
+
+    async def handle_evi(evi):
+        print(f"EVI received: {evi}")
+    
+    async def handle_message(message):
+        print(f"Received message: {message}")
+
+    try:
+        async with client.connect(config_id="9d16b0be-d7fc-4fa9-b9f1-76e79a8052f6") as socket:
+            
+            mic = await MicrophoneInterface.start(socket)
+            print("Microphone started. Please speak...")
+
+            socket.register_callback(handle_transcription) 
+            socket.register_callback(handle_evi)  
+            socket.on_message = handle_message
+
+            # Keep the connection open
+            while True:
+                await asyncio.sleep(0.1)  # Add a short delay
+              
+    except Exception as e:
+        pass 
+
+if __name__ == "__main__":
+    asyncio.run(main())

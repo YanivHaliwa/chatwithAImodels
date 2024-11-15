@@ -1,0 +1,9 @@
+anthropic
+cohere
+colorama
+google
+httpx
+openai
+requests
+
+
