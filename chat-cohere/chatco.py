@@ -139,8 +139,8 @@ def python_interpreter(code: str) -> list[dict]:
     # Get stdout
     return [{"console_output": output.getvalue(), "executed_code": code}]
     
-def get_bot_response(uinput,online):
-    global temptext,uhistory,bhistory, conversation_log,file_text  
+def get_bot_response(uinput,online,file_mode):
+    global temptext,uhistory,bhistory, conversation_log,file_text 
     temptext=""
     summary=""
     attempt = True
@@ -157,8 +157,7 @@ def get_bot_response(uinput,online):
 
  
     clean_conversation_log = validate_and_clean_log(conversation_log)
-    # print(f"File text exists: {bool(file_text)}")
-    # print("websearch: ",online)
+ 
 
     try:
         preamble_offline="""
@@ -176,33 +175,37 @@ def get_bot_response(uinput,online):
                 i need you to make summarize not give me the full news. only headlines of important things
                 dont give too much infomation long its ok to give 5 to 10 lines of information  
                 """+preamble_offline
-        for event in co.chat_stream(
-                #model=command-r-plus,command-nightly,command-r-plus-08-2024
-                model='command-nightly',
-                message=uinput, 
-                temperature=1,
-                max_tokens=1500,
-                chat_history=list(clean_conversation_log),
-                connectors=[{"id": "web-search"}] if online else None,
-                documents=[
-                        {"title": "general", "snippet": file_text},
-                    ] if not online else None,
-                preamble=preamble_online if online else preamble_offline,
-              
-                
-            ):
+        
+        
+        params = {
+            "model": "command-nightly",
+            "message": uinput,
+            "temperature": 1,
+            "max_tokens": 1500,
+            "chat_history": list(clean_conversation_log),
+        }
+        if online:
+            # For online mode, include the connector and online preamble.
+            params["connectors"] = [{"id": "web-search"}]
+            params["preamble"] = preamble_online
+        elif file_mode:
+            # For file mode, include the documents and offline preamble.
+            params["documents"] = [{"title": "general", "snippet": file_text}]
+            params["preamble"] = preamble_offline
+        else:
+            params["preamble"] = preamble_offline
 
-            if event.event_type == "text-generation":
+        for event in co.chat_stream(**params):               
+            if event.event_type == "text-generation" and event.text.strip():
                 response_tokens = len(event.text.split())  # Estimate token count
                 token_count += response_tokens
                 summary+=event.text
                 print(event.text, end='', flush=True)  # Print each piece on the same line
-                
-              
-        
+                  
             elif event.event_type == "stream-end":
                 print("")
                 break
+        # print(summary) 
         add_message("CHATBOT",summary)
         attempt = False
        
@@ -349,8 +352,10 @@ def read_file(file):
         return False
 
 def conv():
+    global conversation_log,file_text,file_mode
     online=False
-    global conversation_log,file_text
+    file_mode=False
+    file_text=""
     json_output=""
     while True:
         try:   
@@ -360,6 +365,7 @@ def conv():
             ui=user_input.strip()
             if "/read" in ui:
                 online=False
+                file_mode=True
                 file=extract_filename(ui)
                 file_text=read_file(file)
                 file_text=f"file name: {file}, content: {file_text}"
@@ -367,7 +373,7 @@ def conv():
                 if file_text:    
                     user_input2=input(Fore.BLUE + Style.BRIGHT + 'what the request on the file?: ' + Style.RESET_ALL).strip()                   
                     ui=f"user attach u documents you must read it. file name above: {file} \n\n question: {user_input2}"
-                    print("got url")
+                    # print("got url")
                     
             if ui == "/exit" or ui == "exit":
                 break      
@@ -412,9 +418,7 @@ def conv():
             
             if ui.strip():
                 add_message("USER",ui)
-            # save_conversation(texttoadd)
-                response = get_bot_response(ui,online)
-            
+                response = get_bot_response(ui,online,file_mode)
 
         except KeyboardInterrupt:
             print("\n")   
