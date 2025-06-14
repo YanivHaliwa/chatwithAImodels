@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+import base64
+import os
+import sys
+import time
+import anthropic
+import httpx
+
+# Colors for user and Claude responses
+USER_COLOR = "\033[94m"  # Light blue
+CLAUDE_COLOR = "\033[92m"  # Light green
+RESET_COLOR = "\033[0m"  # Reset color
+
+def is_url(path):
+    return path.startswith("http://") or path.startswith("https://")
+
+def get_image_data(image_path):
+    if is_url(image_path):
+        image_data = base64.b64encode(httpx.get(image_path).content).decode("utf-8")
+        media_type = "image/jpeg"  # Assume JPEG format for URLs
+    else:
+        with open(image_path, "rb") as image_file:
+            image_data = base64.b64encode(image_file.read()).decode("utf-8")
+        media_type = "image/" + os.path.splitext(image_path)[1][1:]  # Get media type from file extension
+
+    return image_data, media_type
+
+def chat_with_claude(client, model, image_path):
+    image_data, media_type = get_image_data(image_path)
+
+    while True:
+        user_input = input(f"{USER_COLOR}You: {RESET_COLOR}")
+
+        if user_input.lower() == "exit":
+            print("Goodbye!")
+            break
+
+        retry_count = 0
+        max_retries = 3
+        delay = 1
+
+        while retry_count < max_retries:
+            try:
+                with client.messages.stream(
+                    max_tokens=4000,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "image",
+                                    "source": {
+                                        "type": "base64",
+                                        "media_type": media_type,
+                                        "data": image_data
+                                    }
+                                },
+                                {
+                                    "type": "text",
+                                    "text": user_input
+                                }
+                            ]
+                        }
+                    ],
+                    model=model,
+                ) as stream:
+                    print(f"{CLAUDE_COLOR}Claude: {RESET_COLOR}", end="")
+                    for text in stream.text_stream:
+                        print(text, end="", flush=True)
+                    print()
+                    break  # Exit the retry loop if the request is successful
+            except anthropic.APIStatusError as e:
+                if e.status_code == 429 and "Overloaded" in str(e):
+                    retry_count += 1
+                    print(f"Overloaded error encountered. Retrying in {delay} seconds... (Attempt {retry_count}/{max_retries})")
+                    time.sleep(delay)
+                    delay *= 2  # Exponential backoff
+                else:
+                    raise  # Re-raise the exception for other types of errors
+
+def main():
+    if len(sys.argv) != 2:
+        print("Usage: python script.py <image_path>")
+        sys.exit(1)
+
+    image_path = sys.argv[1]
+    client = anthropic.Anthropic()
+    model = "claude-3-opus-20240229"
+
+    print("Welcome to the chat with Claude! Type 'exit' to quit.")
+    chat_with_claude(client, model, image_path)
+
+if __name__ == "__main__":
+    main()
